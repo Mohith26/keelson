@@ -42,6 +42,25 @@ def timed(fn, repeat=1):
     return best, out
 
 
+def timed_amortized(fn, min_seconds=0.05):
+    """Run until the total is comfortably above the clock's resolution.
+
+    A single fetch here can finish faster than perf_counter can resolve, which
+    is how the first version of this benchmark managed to divide by zero. Loop
+    until enough time has accumulated and divide, rather than reporting a
+    per call time that the clock cannot actually support.
+    """
+    n = 1
+    while True:
+        t0 = time.perf_counter()
+        for _ in range(n):
+            out = fn()
+        dt = time.perf_counter() - t0
+        if dt >= min_seconds or n >= 1 << 20:
+            return dt / n, out, n
+        n *= 4
+
+
 def bench_ingest(m):
     fleet = generate(seed=1, n_sites=20, turbines_per_site=40, points_per_series=0, work_orders_per_site=200)
     ses = open_session(m)
@@ -90,8 +109,11 @@ def bench_pushdown(m):
     for backend in ("relational", "memory"):
         ses = open_session(m, backend=backend)
         fleet.load_into(ses)
-        ses.reset_counters()
         dt, rows = timed(lambda: ses.type("Turbine").fetch(**query), repeat=5)
+        # Counters accumulate, so take them from a single clean run rather
+        # than from the timing loop, where they would be five times too high.
+        ses.reset_counters()
+        ses.type("Turbine").fetch(**query)
         out[backend] = {
             "seconds": dt,
             "rows_returned": len(rows),
@@ -117,9 +139,10 @@ def bench_join(m):
     turbine = ses.model["Turbine"]
     site = ses.model["Site"]
 
-    ses.reset_counters()
     dt_batched, rows = timed(lambda: ses.type("Turbine").fetch(include=["site"]), repeat=3)
-    batched_queries = ses.store.queries // 3
+    ses.reset_counters()
+    ses.type("Turbine").fetch(include=["site"])
+    batched_queries = ses.store.queries
 
     def naive():
         roots = ses.store.fetch(turbine)
@@ -237,10 +260,23 @@ def bench_query_throughput(m):
         lambda: ses.type("WorkOrder").evaluate(group=["category"], metrics={"n": "count()", "d": "sum(downtimeMinutes)"}),
         lambda: ses.type("Site").fetch(include=["assets"]),
     ]
+    labels = [
+        "filter + limit",
+        "filter + order + limit",
+        "group by site",
+        "group by work order category",
+        "polymorphic collection include",
+    ]
     out = {}
     for i, q in enumerate(queries):
-        dt, rows = timed(q, repeat=5)
-        out["q%d" % (i + 1)] = {"seconds": dt, "rows": len(rows), "qps": 1.0 / dt}
+        dt, rows, iters = timed_amortized(q)
+        out["q%d" % (i + 1)] = {
+            "label": labels[i],
+            "seconds": dt,
+            "rows": len(rows),
+            "qps": 1.0 / dt,
+            "iterations": iters,
+        }
     return out
 
 
@@ -303,9 +339,12 @@ def _print(r):
     for name, c in sorted(r["codec_shapes"].items(), key=lambda kv: kv[1]["bytes_per_point"]):
         print("  %-18s %5.2f bytes/point  %5.2fx" % (name, c["bytes_per_point"], c["compression_ratio"]))
 
-    print("query latency")
+    print("query latency (amortized over repeated runs)")
     for name, q in sorted(r["query_throughput"].items()):
-        print("  %-4s %8.3f ms  (%d rows)" % (name, q["seconds"] * 1000, q["rows"]))
+        print(
+            "  %-32s %8.3f ms  (%d rows, %d iters)"
+            % (q["label"], q["seconds"] * 1000, q["rows"], q["iterations"])
+        )
 
 
 if __name__ == "__main__":
