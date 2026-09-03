@@ -156,6 +156,23 @@ class Model:
     def concrete(self):
         return [t for t in self.types.values() if not t.is_abstract]
 
+    def concrete_subtypes(self, name):
+        """Every concrete type that a value declared as `name` could actually be.
+
+        A relationship is allowed to target an abstract type, which is the
+        whole reason `abstract entity type Asset` is worth having: a Site can
+        own turbines and substations through one `assets` collection. There is
+        no table for Asset itself, so the planner has to fan the query out over
+        the concrete subtypes and union the results.
+        """
+        rtype = self[name]
+        if not rtype.is_abstract:
+            return [rtype]
+        return sorted(
+            (t for t in self.types.values() if not t.is_abstract and name in t.bases),
+            key=lambda t: t.name,
+        )
+
     def names(self):
         return sorted(self.types)
 

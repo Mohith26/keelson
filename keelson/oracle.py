@@ -75,32 +75,40 @@ class Oracle:
         name = parts[0]
         field = rtype.field(name)
         if field.kind == "reference":
-            remote = self.model[field.type_name]
-            attached = []
+            remotes = self.model.concrete_subtypes(field.type_name)
+            attached = {t.name: [] for t in remotes}
             for r in rows:
                 target = None
-                for candidate in self.rows[remote.name]:
-                    if candidate["id"] == r.get(field.fk_local):
-                        target = dict(candidate)
+                found_on = None
+                for remote in remotes:
+                    for candidate in self.rows[remote.name]:
+                        if candidate["id"] == r.get(field.fk_local):
+                            target = dict(candidate)
+                            found_on = remote.name
+                            break
+                    if target is not None:
                         break
                 r[name] = target
                 if target is not None:
-                    attached.append(target)
+                    attached[found_on].append(target)
             if len(parts) > 1:
-                self._include(remote, attached, parts[1:], window)
+                for remote in remotes:
+                    self._include(remote, attached[remote.name], parts[1:], window)
         elif field.kind == "collection":
-            remote = self.model[field.type_name]
-            attached = []
+            remotes = self.model.concrete_subtypes(field.type_name)
+            attached = {t.name: [] for t in remotes}
             for r in rows:
-                kids = [
-                    dict(c)
-                    for c in self.rows[remote.name]
-                    if c.get(field.fk_local) == r.get(field.fk_remote)
-                ]
+                kids = []
+                for remote in remotes:
+                    for c in self.rows[remote.name]:
+                        if c.get(field.fk_local) == r.get(field.fk_remote):
+                            copy = dict(c)
+                            kids.append(copy)
+                            attached[remote.name].append(copy)
                 r[name] = kids
-                attached.extend(kids)
             if len(parts) > 1:
-                self._include(remote, attached, parts[1:], window)
+                for remote in remotes:
+                    self._include(remote, attached[remote.name], parts[1:], window)
         elif field.kind == "timeseries":
             start, end = window or (None, None)
             for r in rows:

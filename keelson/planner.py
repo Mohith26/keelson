@@ -147,22 +147,32 @@ class Planner:
         where, params = _compile(rtype, pushable)
         return store.fetch(rtype, where, params, order=order, limit=limit, offset=offset)
 
-    def _fetch_where_in(self, rtype, field_name, values):
-        """Batched `field IN (...)` across as many statements as it takes."""
+    def _fetch_where_in(self, target_name, field_name, values):
+        """Batched `field IN (...)`, fanned out over concrete subtypes.
+
+        Returns a list of (rtype, rows) pairs rather than one flat list,
+        because a nested include has to be expanded against the type each row
+        actually came from. Keys are chunked below SQLite's bound parameter
+        cap, so a join over tens of thousands of parents is still a handful of
+        statements rather than one per row.
+        """
         store = self.session.store
-        column = rtype.field(field_name).column
+        keys = sorted(set(v for v in values if v is not None))
         out = []
-        for chunk in _chunks(sorted(set(v for v in values if v is not None))):
-            if hasattr(store, "set_predicate"):
-                wanted = set(chunk)
-                store.set_predicate(None)
-                rows = store.fetch(rtype, None, ())
-                out.extend(r for r in rows if r.get(field_name) in wanted)
-            else:
-                holes = ", ".join("?" for _ in chunk)
-                out.extend(
-                    store.fetch(rtype, '"%s" IN (%s)' % (column, holes), tuple(chunk))
-                )
+        for rtype in self.session.model.concrete_subtypes(target_name):
+            column = rtype.field(field_name).column
+            rows = []
+            for chunk in _chunks(keys):
+                if hasattr(store, "set_predicate"):
+                    wanted = set(chunk)
+                    store.set_predicate(None)
+                    rows.extend(r for r in store.fetch(rtype, None, ()) if r.get(field_name) in wanted)
+                else:
+                    holes = ", ".join("?" for _ in chunk)
+                    rows.extend(
+                        store.fetch(rtype, '"%s" IN (%s)' % (column, holes), tuple(chunk))
+                    )
+            out.append((rtype, rows))
         return out
 
     # -- includes ------------------------------------------------------
@@ -187,28 +197,32 @@ class Planner:
                 )
 
     def _join_reference(self, rtype, field, rows, subtree, stats, window):
-        remote = self.session.model[field.type_name]
         keys = [r.get(field.fk_local) for r in rows]
-        remote_rows = self._fetch_where_in(remote, "id", keys)
-        stats.joined_rows += len(remote_rows)
-        index = {r["id"]: r for r in remote_rows}
+        groups = self._fetch_where_in(field.type_name, "id", keys)
+        index = {}
+        for _remote, remote_rows in groups:
+            stats.joined_rows += len(remote_rows)
+            for r in remote_rows:
+                index[r["id"]] = r
         for r in rows:
             r[field.name] = index.get(r.get(field.fk_local))
         if subtree:
-            self._expand(remote, remote_rows, subtree, stats, window)
+            for remote, remote_rows in groups:
+                self._expand(remote, remote_rows, subtree, stats, window)
 
     def _join_collection(self, rtype, field, rows, subtree, stats, window):
-        remote = self.session.model[field.type_name]
         keys = [r.get(field.fk_remote) for r in rows]
-        remote_rows = self._fetch_where_in(remote, field.fk_local, keys)
-        stats.joined_rows += len(remote_rows)
+        groups = self._fetch_where_in(field.type_name, field.fk_local, keys)
         buckets = {}
-        for r in remote_rows:
-            buckets.setdefault(r.get(field.fk_local), []).append(r)
+        for _remote, remote_rows in groups:
+            stats.joined_rows += len(remote_rows)
+            for r in remote_rows:
+                buckets.setdefault(r.get(field.fk_local), []).append(r)
         for r in rows:
             r[field.name] = buckets.get(r.get(field.fk_remote), [])
         if subtree:
-            self._expand(remote, remote_rows, subtree, stats, window)
+            for remote, remote_rows in groups:
+                self._expand(remote, remote_rows, subtree, stats, window)
 
     def _attach_series(self, rtype, field, rows, stats, window):
         ts = self.session.timeseries
