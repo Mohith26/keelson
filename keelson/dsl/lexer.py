@@ -9,6 +9,9 @@ import re
 
 from ..errors import LexError
 
+# `name` is deliberately absent. It only means something directly after
+# `schema`, and making it a reserved word here would ban the single most
+# common field name in any real model. The parser treats it contextually.
 KEYWORDS = {
     "entity",
     "mixin",
@@ -17,7 +20,6 @@ KEYWORDS = {
     "extends",
     "mixes",
     "schema",
-    "name",
     "timeseries",
     "true",
     "false",
