@@ -1,6 +1,7 @@
 from keelson.dsl.parser import parse
 from keelson.errors import ParseError
 
+from .fixtures import TINY, fleet_source
 from .runner import eq, ok, raises
 
 
@@ -34,6 +35,10 @@ def test_schema_name_on_type_and_field():
     eq(t.table, "TBL")
     eq(t.fields[0].column, "PK")
 
+
+def test_defaults():
+    t = one('entity type A { id: string, n: int = 7, s: string = "x", b: boolean = true }')
+    eq([f.default for f in t.fields], [None, 7, "x", True])
 
 
 def test_reference_field():
@@ -69,6 +74,15 @@ def test_annotation_with_no_arguments():
     eq(t.annotations["deprecated"], {})
 
 
+def test_multiple_types_in_one_module():
+    mod = parse(TINY)
+    eq(sorted(mod.by_name()), ["Persistable", "Sensor", "Site", "Turbine"])
+
+
+def test_fleet_model_parses():
+    mod = parse(fleet_source(), "fleet.ks")
+    names = sorted(mod.by_name())
+    eq(names, ["Asset", "Audited", "Persistable", "Sensor", "Site", "Substation", "Turbine", "WorkOrder"])
 
 
 def test_missing_brace_is_reported_with_a_line():

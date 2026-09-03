@@ -106,6 +106,9 @@ class Parser:
             if self.at("EOF"):
                 raise ParseError("unterminated type body", start.line, start.col)
             fields.append(self.parse_field())
+            # Field separators are optional, so both the comma style and the
+            # newline style read naturally.
+            self.accept("COMMA")
         self.expect("RBRACE", "'}'")
 
         return TypeDecl(
@@ -137,7 +140,11 @@ class Parser:
 
     def parse_schema_name(self):
         self.expect("SCHEMA")
-        self.expect("NAME", "'name' after 'schema'")
+        # `name` is a contextual keyword, not a reserved word, so it arrives as
+        # an ordinary identifier and has to be checked by value.
+        tok = self.expect("IDENT", "'name' after 'schema'")
+        if tok.value != "name":
+            raise ParseError("expected 'name' after 'schema'", tok.line, tok.col)
         return self.expect("STRING", "a quoted schema name").value
 
     def parse_literal(self):
