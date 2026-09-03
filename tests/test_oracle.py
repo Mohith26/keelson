@@ -182,7 +182,11 @@ def test_randomized_query_sweep_on_both_backends():
             if f and "site." in f:
                 inc = list(set((inc or []) + ["site"]))
             order = rnd.choice(ORDERS)
-            limit = rnd.choice([None, 1, 3, 10, 50])
+            # A LIMIT without an ORDER BY picks an arbitrary subset, and SQL
+            # is entitled to pick a different one than a Python list slice.
+            # Comparing those would be testing insertion order, not the
+            # engine, so unordered queries are compared unlimited.
+            limit = rnd.choice([None, 1, 3, 10, 50]) if order else None
             offset = rnd.choice([0, 0, 2, 7]) if limit else 0
             got = ses.type("Turbine").fetch(
                 filter=f, include=inc, order=order, limit=limit, offset=offset
