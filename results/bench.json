@@ -1,0 +1,157 @@
+{
+  "codec_shapes": {
+    "constant": {
+      "bytes_per_point": 0.31640625,
+      "compression_ratio": 50.5679012345679,
+      "encoded_bytes": 2592,
+      "points": 8192,
+      "raw_bytes": 131072
+    },
+    "diurnal": {
+      "bytes_per_point": 6.9315185546875,
+      "compression_ratio": 2.3082964971910607,
+      "encoded_bytes": 56783,
+      "points": 8192,
+      "raw_bytes": 131072
+    },
+    "jittered_cadence": {
+      "bytes_per_point": 7.1566162109375,
+      "compression_ratio": 2.2356934518225393,
+      "encoded_bytes": 58627,
+      "points": 8192,
+      "raw_bytes": 131072
+    },
+    "slow_walk": {
+      "bytes_per_point": 6.27978515625,
+      "compression_ratio": 2.547857864862763,
+      "encoded_bytes": 51444,
+      "points": 8192,
+      "raw_bytes": 131072
+    },
+    "stepwise": {
+      "bytes_per_point": 0.3203125,
+      "compression_ratio": 49.951219512195124,
+      "encoded_bytes": 2624,
+      "points": 8192,
+      "raw_bytes": 131072
+    },
+    "white_noise": {
+      "bytes_per_point": 8.42822265625,
+      "compression_ratio": 1.898383639418342,
+      "encoded_bytes": 69044,
+      "points": 8192,
+      "raw_bytes": 131072
+    }
+  },
+  "entity_ingest": {
+    "counts": {
+      "points": 0,
+      "sensors": 3200,
+      "series": 0,
+      "sites": 20,
+      "substations": 20,
+      "turbines": 800,
+      "work_orders": 4000
+    },
+    "entity_rows": 8040,
+    "rows_per_sec": 370506.9124422286,
+    "seconds": 0.021700000000009823
+  },
+  "joins": {
+    "batched_queries": 2,
+    "batched_seconds": 0.0027999999999792635,
+    "naive_queries": 1001,
+    "naive_seconds": 0.01490000000001146,
+    "parents": 1000,
+    "query_reduction": 500.5,
+    "rows_match": true,
+    "speedup": 5.321428571472074
+  },
+  "pushdown": {
+    "memory": {
+      "pushed_filter": true,
+      "pushed_limit": true,
+      "pushed_order": true,
+      "rows_returned": 20,
+      "rows_scanned": 800,
+      "seconds": 0.0004999999999881766,
+      "store_queries": 1
+    },
+    "relational": {
+      "pushed_filter": true,
+      "pushed_limit": true,
+      "pushed_order": true,
+      "rows_returned": 20,
+      "rows_scanned": 20,
+      "seconds": 9.999999997489795e-05,
+      "store_queries": 1
+    },
+    "scan_reduction": 40.0,
+    "speedup": 5.000000001136868,
+    "turbines_in_fleet": 800
+  },
+  "query_throughput": {
+    "q1": {
+      "iterations": 1024,
+      "label": "filter + limit",
+      "qps": 7004.103967167226,
+      "rows": 50,
+      "seconds": 0.00014277343750002114
+    },
+    "q2": {
+      "iterations": 1024,
+      "label": "filter + order + limit",
+      "qps": 11034.48275861937,
+      "rows": 20,
+      "seconds": 9.062500000001084e-05
+    },
+    "q3": {
+      "iterations": 1024,
+      "label": "group by site",
+      "qps": 14628.571428584733,
+      "rows": 10,
+      "seconds": 6.835937499993783e-05
+    },
+    "q4": {
+      "iterations": 1024,
+      "label": "group by work order category",
+      "qps": 6221.142162820832,
+      "rows": 6,
+      "seconds": 0.0001607421874999515
+    },
+    "q5": {
+      "iterations": 64,
+      "label": "polymorphic collection include",
+      "qps": 860.2150537624882,
+      "rows": 10,
+      "seconds": 0.0011625000000012875
+    }
+  },
+  "segment_skipping": {
+    "decode_reduction": 19.801980198019802,
+    "full_scan": {
+      "points_decoded": 40000,
+      "seconds": 0.14660000000003492,
+      "segments_scanned": 80
+    },
+    "points_in_scope": 40000,
+    "segment_reduction": 2.0,
+    "sensors": 20,
+    "windowed": {
+      "points_decoded": 2020,
+      "points_returned": 2020,
+      "seconds": 0.07389999999998054,
+      "segments_scanned": 40
+    }
+  },
+  "series_ingest": {
+    "bytes_per_point": 6.92380625,
+    "compression_ratio": 2.310867667621404,
+    "encoded_bytes": 2215618,
+    "points": 320000,
+    "points_per_sec": 237617.88074551633,
+    "raw_bytes": 5120000,
+    "seconds": 1.3467000000000553,
+    "series": 160
+  }
+}
