@@ -79,35 +79,35 @@ relationship is allowed to target an abstract type: `Site.assets` targets
 `Asset`, which has no table of its own, so the planner fans the query out over
 `Turbine` and `Substation` and unions the result.
 
-## What is actually in here
+## The pieces
 
-- **`keelson/dsl/`** hand written lexer and recursive descent parser. `name` is
+- `keelson/dsl/` hand written lexer and recursive descent parser. `name` is
   a contextual keyword rather than a reserved word, so a field called `name`
   works.
-- **`keelson/model.py`** flattens inheritance and mixins, then rejects the
+- `keelson/model.py` flattens inheritance and mixins, then rejects the
   edits that would quietly corrupt a schema later: cycles, conflicting
   redeclarations, two types on one table, two fields on one column, indexes
   naming things that are not columns, foreign keys pointing at fields that do
   not exist.
-- **`keelson/expr.py`** one filter grammar, compiled twice: to parameterised
+- `keelson/expr.py` one filter grammar, compiled twice: to parameterised
   SQL, and to a Python predicate. `split_pushable` divides a filter around its
   top level `and` into the part that can go into the database and the part
   that has to wait for the join.
-- **`keelson/stores/tsdb.py`** append only chunked time series with the Gorilla
+- `keelson/stores/tsdb.py` append only chunked time series with the Gorilla
   codec: delta of delta timestamps and XOR compressed float64 values, written
   through a bit level writer. Segments carry a `(min_ts, max_ts)` index so a
   range scan binary searches rather than decoding the series.
-- **`keelson/planner.py`** pushdown, batched hash joins with the `IN` list
+- `keelson/planner.py` pushdown, batched hash joins with the `IN` list
   chunked below SQLite's bound parameter cap, polymorphic fan out, and a
   `PlanStats` record per query so the benchmarks can report what the planner
   actually did.
-- **`keelson/migrate.py`** diffs two models and classifies every change as safe
+- `keelson/migrate.py` diffs two models and classifies every change as safe
   or not. Adding columns and indexes applies automatically; dropping or
   narrowing a column is refused unless you ask for it explicitly.
-- **`keelson/oracle.py`** an independent brute force implementation of the same
+- `keelson/oracle.py` an independent brute force implementation of the same
   query surface, used to check the real engine.
 
-## Measured results
+## What the benchmarks show
 
 From `python bench/run.py` on Python 3.12, single core. Raw output in
 `results/bench.json`, discussion in `RESULTS.md`.
@@ -117,9 +117,9 @@ From `python bench/run.py` on Python 3.12, single core. Raw output in
 | Entity ingest | 8,040 rows in 0.022 s (371k rows/sec) |
 | Time series ingest | 320,000 points across 160 series (238k points/sec) |
 | Encoded size | 6.92 bytes/point vs 16 raw, **2.31x** |
-| Filter pushdown | 20 rows scanned vs 800, **40x fewer**, 5.0x faster |
+| Filter pushdown | 20 rows scanned vs 800, 40x fewer, 5.0x faster |
 | Join batching | 2 queries vs 1,001, **500x fewer**, 5.3x faster |
-| Window scan | 2,020 points decoded vs 40,000, **19.8x fewer** |
+| Window scan | 2,020 points decoded vs 40,000, 19.8x fewer |
 
 Compression depends entirely on the signal, so the benchmark reports six
 shapes rather than one flattering number:
@@ -133,12 +133,12 @@ shapes rather than one flattering number:
 | jittered cadence | 7.16 | 2.24x |
 | white noise | 8.43 | 1.90x |
 
-White noise is the honest floor. Two random float64s share almost no high
+White noise is the floor. Two random float64s share almost no high
 order bits, so the XOR has nothing to strip and the codec only wins on the
 timestamps. Any benchmark of a time series codec that reports a single number
 is telling you about its test data, not its codec.
 
-## Verification
+## Testing
 
 195 tests, 37,517 assertions, no third party dependencies.
 
@@ -156,9 +156,9 @@ limits and offsets, and asserts the two agree exactly. It includes a negative
 control that plants an extra row in the oracle and asserts the comparison
 fails, because an oracle that can never disagree is not testing anything.
 
-## Three bugs the tests found
+## Bugs the tests caught
 
-**A collection could not target an abstract type.** `Site.assets` points at
+A collection could not target an abstract type. `Site.assets` points at
 `Asset`, which is abstract and therefore has no table, and the planner went
 looking for one: `sqlite3.OperationalError: no such table: asset`. Only the
 oracle's nested include test hit it, because that was the only query that
@@ -167,13 +167,13 @@ fanning the join out over the subtypes and unioning, which is a real feature
 rather than a patch, and it is what makes `Site.assets` return turbines and
 substations in one list.
 
-**`name` was a reserved word.** The DSL needs `schema name "WTG"`, so `name`
+`name` was a reserved word. The DSL needs `schema name "WTG"`, so `name`
 went into the keyword set, which made a field called `name` a syntax error.
 That is the most common field name there is. It is now contextual: the lexer
 emits an ordinary identifier and the parser checks the value only in the one
 position where it means something.
 
-**A LIMIT without an ORDER BY is not a bug.** The randomized sweep failed with
+A LIMIT without an ORDER BY is not a bug. The randomized sweep failed with
 the engine returning `wtg-001-003` and the oracle returning `wtg-000-004`, and
 the first instinct was to go hunting in the planner. Both answers are correct:
 an unordered `LIMIT` picks an arbitrary subset and SQL is entitled to pick a
@@ -182,7 +182,7 @@ order, so the test was wrong, and it now only applies a limit when an order is
 specified. Worth writing down because the reflex to blame the code first cost
 me more time than the fix did.
 
-## Where this stops
+## What it does not do
 
 - SQLite only. The `Store` interface is small and the DDL generator is
   already type mapped, but Postgres is not implemented, so "swap the backing
@@ -197,7 +197,7 @@ me more time than the fix did.
 - Migration cannot narrow a column or rename a table in place, because SQLite
   cannot. It reports those rather than attempting them.
 
-## Layout
+## Source tree
 
 ```
 keelson/
